@@ -1,0 +1,16 @@
+cd lab0
+mkdir hello
+cd hello
+touch empty
+cd ../src/
+touch file
+cp hello.c file
+mv file ../hello/
+cd ../hello/
+mv file newhello.c
+gcc newhello.c -o hello_world
+git add empty
+git add newhello.c
+git status
+git commit -m "hello.c and empty files"
+git push
