@@ -2,8 +2,7 @@
 
 #include "swap.h"
 
-int main()
-{
+int main() {
 	char ch1 = 'a';
 	char ch2 = 'b';
 
