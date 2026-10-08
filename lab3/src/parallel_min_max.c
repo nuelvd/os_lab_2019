@@ -42,16 +42,19 @@ int main(int argc, char **argv) {
             seed = atoi(optarg);
             // your code here
             // error handling
+            if (seed<=0) {printf("invalid seed");return 1;}
             break;
           case 1:
             array_size = atoi(optarg);
             // your code here
             // error handling
+            if (array_size<=0) {printf("invalid size");return 1;}
             break;
           case 2:
             pnum = atoi(optarg);
             // your code here
             // error handling
+            if (pnum<=0) {printf("invalid pnum");return 1;}
             break;
           case 3:
             with_files = true;
@@ -91,6 +94,11 @@ int main(int argc, char **argv) {
   struct timeval start_time;
   gettimeofday(&start_time, NULL);
 
+  int fd[2];
+  if (!with_files) {
+    if (pipe(fd)==-1) {perror("pipe"); return 1;}
+  }
+
   for (int i = 0; i < pnum; i++) {
     pid_t child_pid = fork();
     if (child_pid >= 0) {
@@ -100,11 +108,22 @@ int main(int argc, char **argv) {
         // child process
 
         // parallel somehow
-
+        int start =i *(array_size / pnum);
+        int end = (i==pnum-1) ? array_size: start + (array_size / pnum);
+        struct MinMax localmin_max = GetMinMax(array, start, end);
         if (with_files) {
           // use files here
+          char filename[64];
+          snprintf(filename, sizeof(filename), "child_%d.txt",i);
+          FILE *f = fopen(filename,"r");
+          fscanf(f,"%d %d", &localmin_max.min,&localmin_max.max);
+          fclose(f);
         } else {
           // use pipe here
+          close(fd[0]);
+          write(fd[1],&localmin_max.min,sizeof(int));
+          write(fd[1],&localmin_max.max,sizeof(int));
+          close(fd[1]);
         }
         return 0;
       }
@@ -115,9 +134,11 @@ int main(int argc, char **argv) {
     }
   }
 
+  if (!with_files) close(fd[1]);
+
   while (active_child_processes > 0) {
     // your code here
-
+    wait(NULL);
     active_child_processes -= 1;
   }
 
@@ -131,8 +152,18 @@ int main(int argc, char **argv) {
 
     if (with_files) {
       // read from files
+      char filename[64];
+          snprintf(filename, sizeof(filename), "child_%d.txt",i);
+          FILE *f = fopen(filename,"r");
+          if (f) {
+            fscanf(f,"%d %d", &min,&max);
+            fclose(f);
+            remove(filename);
+          }
     } else {
       // read from pipes
+      read(fd[0],&min, sizeof(int));
+      read(fd[0],&max, sizeof(int));
     }
 
     if (min < min_max.min) min_max.min = min;
