@@ -4,28 +4,22 @@
 #include <string.h>
 #include <getopt.h>
 
-// Глобальные переменные
 long long k, pnum, mod;
-long long result = 1; // Общий результат
+long long result = 1;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-// Структура для передачи аргументов в поток
 typedef struct {
     long long start;
     long long end;
 } ThreadArg;
 
-// Функция потока
 void* compute_factorial(void* arg) {
     ThreadArg* range = (ThreadArg*)arg;
     long long local_result = 1;
-
-    // Вычисляем произведение своего диапазона
     for (long long i = range->start; i <= range->end; i++) {
         local_result = (local_result * i) % mod;
     }
 
-    // Синхронизация: обновляем общий результат под мьютексом
     pthread_mutex_lock(&mutex);
     result = (result * local_result) % mod;
     pthread_mutex_unlock(&mutex);
@@ -34,12 +28,10 @@ void* compute_factorial(void* arg) {
 }
 
 int main(int argc, char *argv[]) {
-    // Значения по умолчанию
     k = 0;
     pnum = 1;
     mod = 1;
 
-    // Разбор аргументов командной строки
     static struct option long_options[] = {
         {"pnum", required_argument, 0, 'p'},
         {"mod",  required_argument, 0, 'm'},
@@ -66,33 +58,28 @@ int main(int argc, char *argv[]) {
     pthread_t* threads = malloc(pnum * sizeof(pthread_t));
     ThreadArg* args = malloc(pnum * sizeof(ThreadArg));
 
-    // Распределение диапазонов между потоками
-    long long chunk_size = (k + pnum - 1) / pnum; // Округление вверх
+    long long chunk_size = (k + pnum - 1) / pnum;
     for (long long i = 0; i < pnum; i++) {
         args[i].start = i * chunk_size + 1;
         args[i].end = (i + 1) * chunk_size;
         if (args[i].end > k) {
             args[i].end = k;
         }
-        // Если диапазон пустой (например, при k=0 или малом k), поток завершится сразу
         if (args[i].start > args[i].end) {
             args[i].start = 1;
-            args[i].end = 0; // Цикл не выполнится
+            args[i].end = 0;
         }
 
-        // Создание потока
         if (pthread_create(&threads[i], NULL, compute_factorial, &args[i]) != 0) {
             perror("Thread creation failed");
             exit(EXIT_FAILURE);
         }
     }
 
-    // Ожидание завершения всех потоков
     for (long long i = 0; i < pnum; i++) {
         pthread_join(threads[i], NULL);
     }
 
-    // Вывод результата
     printf("%lld! mod %lld = %lld\n", k, mod, result);
 
     free(threads);
