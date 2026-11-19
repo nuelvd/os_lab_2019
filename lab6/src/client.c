@@ -135,43 +135,16 @@ int main(int argc, char **argv) {
   }
 
   char line[512];
-  while (fgets(line, sizeof(line), f)) {
-    line[strcspn(line, "\r\n")] = '\0';
-    if (line[0] == '\0' || line[0] == '#')
-      continue;
-
-    char *colon = strrchr(line, ':');
-    if (!colon) {
-      fprintf(stderr, "Bad server line: %s\n", line);
-      continue;
-    }
-    *colon = '\0';
-    const char *ip = line;
-    int port = atoi(colon + 1);
-
-    if (port <= 0 || port > 65535) {
-      fprintf(stderr, "Bad port in line: %s:%s\n", ip, colon + 1);
-      continue;
-    }
-    if (strlen(ip) >= sizeof(to[servers_num].ip)) {
-      fprintf(stderr, "IP too long: %s\n", ip);
-      continue;
-    if (servers_num == capacity) {
-      capacity *= 2;
-      struct Server *tmp = realloc(to, sizeof(struct Server) * capacity);
-      if (!tmp) {
-        fprintf(stderr, "realloc failed\n");
-        free(to);
-        fclose(f);
-        return 1;
-      }
-      to = tmp;
-    }
-    memcpy(to[servers_num].ip, ip, strlen(ip) + 1);
-    to[servers_num].port = port;
-    servers_num++;
+  while (fgets(line, sizeof(line), f) != NULL) {
+  char *colon = strchr(line, ':');
+  if (colon == NULL)
+    continue;
+  *colon = '\0';
+  to = realloc(to, sizeof(struct Server) * (servers_num + 1));
+  snprintf(to[servers_num].ip, sizeof(to[servers_num].ip), "%s", line);
+  to[servers_num].port = atoi(colon + 1);
+  servers_num++;
   }
-}
   fclose(f);
   if (servers_num == 0) {
     fprintf(stderr, "No servers in file\n");
@@ -191,6 +164,11 @@ int main(int argc, char **argv) {
   // TODO: work continiously, rewrite to make parallel
 
   for (int i = 0; i < servers_num; i++) {
+    uint64_t my_count = chunk + (i<remainder ? 1 : 0);
+    uint64_t begin = current;
+    uint64_t end = current + my_count -1;
+    current+=my_count;
+
     struct hostent *hostname = gethostbyname(to[i].ip);
     if (hostname == NULL) {
       fprintf(stderr, "gethostbyname failed with %s\n", to[i].ip);

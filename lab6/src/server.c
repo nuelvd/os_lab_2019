@@ -170,20 +170,20 @@ int main(int argc, char **argv) {
       fprintf(stdout, "Receive: %llu %llu %llu\n", (unsigned long long)begin, (unsigned long long)end, (unsigned long long)mod);
 
       struct FactorialArgs args[tnum];
-      for (uint32_t i = 0; i < tnum; i++) {
-        // TODO: parallel somehow
 
-        uint64_t total_count = (end >= begin) ? (end - begin + 1) : 0;
-        uint64_t chunk = total_count / (uint64_t)tnum;
-        uint64_t remainder = total_count % (uint64_t)tnum;
-        uint64_t current = begin;
-        for (uint32_t i = 0; i < (uint32_t)tnum; i++) {
-          uint64_t my_count = chunk + (i < remainder ? 1 : 0);
+      // TODO: parallel somehow
 
-          args[i].begin = current;
-          args[i].end = current + my_count - 1;
-          args[i].mod = mod;
-          current += my_count;
+      uint64_t total_count = (end >= begin) ? (end - begin + 1) : 0;
+      uint64_t chunk = total_count / (uint64_t)tnum;
+      uint64_t remainder = total_count % (uint64_t)tnum;
+      uint64_t current = begin;
+      for (uint32_t i = 0; i < (uint32_t)tnum; i++) {
+        uint64_t my_count = chunk + (i < remainder ? 1 : 0);
+
+        args[i].begin = current;
+        args[i].end = current + my_count - 1;
+        args[i].mod = mod;
+        current += my_count;
 
         if (pthread_create(&threads[i], NULL, ThreadFactorial,
                            (void *)&args[i])) {
@@ -199,7 +199,7 @@ int main(int argc, char **argv) {
         total = MultModulo(total, result, mod);
       }
 
-      printf("Total: %llu\n", total);
+      printf("Total: %llu\n", (unsigned long long)total);
 
       char buffer[sizeof(total)];
       memcpy(buffer, &total, sizeof(total));
