@@ -1,5 +1,15 @@
 # Операционные системы 2019
-
+    while (fgets(line, sizeof(line), fp) != NULL) {
+      char *colon = strchr(line, ':');
+      if (colon == NULL)
+        continue;
+      *colon = '\0';
+      to = realloc(to, sizeof(struct Server) * (servers_num + 1));
+      snprintf(to[servers_num].ip, sizeof(to[servers_num].ip), "%s", line);
+      to[servers_num].port = atoi(colon + 1);
+      servers_num++;
+    }
+    fclose(fp);
 Курс доступен по [ссылке](https://github.com/IpovsOperatingSystems/os_lab_2019).
 
 # Про то, как задавать вопросы в группу в WhatsUp:
