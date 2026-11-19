@@ -36,6 +36,9 @@ uint64_t Factorial(const struct FactorialArgs *args) {
   uint64_t ans = 1;
 
   // TODO: your code here
+    for (uint64_t i = args->begin; i <= args->end; i++) {
+    ans = MultModulo(ans, i % args->mod, args->mod);
+  }
 
   return ans;
 }
@@ -68,10 +71,20 @@ int main(int argc, char **argv) {
       case 0:
         port = atoi(optarg);
         // TODO: your code here
+
+        if (port <= 0 || port > 65535) {
+          fprintf(stderr, "Invalid port: %s\n", optarg);
+          return 1;
+        }
         break;
       case 1:
         tnum = atoi(optarg);
         // TODO: your code here
+
+        if (tnum <= 0) {
+          fprintf(stderr, "Invalid tnum: %s\n", optarg);
+          return 1;
+        }
         break;
       default:
         printf("Index %d is out of options\n", option_index);
@@ -154,14 +167,23 @@ int main(int argc, char **argv) {
       memcpy(&end, from_client + sizeof(uint64_t), sizeof(uint64_t));
       memcpy(&mod, from_client + 2 * sizeof(uint64_t), sizeof(uint64_t));
 
-      fprintf(stdout, "Receive: %llu %llu %llu\n", begin, end, mod);
+      fprintf(stdout, "Receive: %llu %llu %llu\n", (unsigned long long)begin, (unsigned long long)end, (unsigned long long)mod);
 
       struct FactorialArgs args[tnum];
       for (uint32_t i = 0; i < tnum; i++) {
         // TODO: parallel somehow
-        args[i].begin = 1;
-        args[i].end = 1;
-        args[i].mod = mod;
+
+        uint64_t total_count = (end >= begin) ? (end - begin + 1) : 0;
+        uint64_t chunk = total_count / (uint64_t)tnum;
+        uint64_t remainder = total_count % (uint64_t)tnum;
+        uint64_t current = begin;
+        for (uint32_t i = 0; i < (uint32_t)tnum; i++) {
+          uint64_t my_count = chunk + (i < remainder ? 1 : 0);
+
+          args[i].begin = current;
+          args[i].end = current + my_count - 1;
+          args[i].mod = mod;
+          current += my_count;
 
         if (pthread_create(&threads[i], NULL, ThreadFactorial,
                            (void *)&args[i])) {

@@ -68,16 +68,32 @@ int main(int argc, char **argv) {
     case 0: {
       switch (option_index) {
       case 0:
-        ConvertStringToUI64(optarg, &k);
         // TODO: your code here
+
+          if (!ConvertStringToUI64(optarg, &k)) {
+            fprintf(stderr, "Invalid k\n");
+            return 1;
+          }
+          break;
+
         break;
       case 1:
-        ConvertStringToUI64(optarg, &mod);
         // TODO: your code here
+
+        if (!ConvertStringToUI64(optarg, &mod)) {
+          fprintf(stderr, "Invalid mod\n");
+          return 1;
+        }
         break;
       case 2:
         // TODO: your code here
-        memcpy(servers, optarg, strlen(optarg));
+
+        if (strlen(optarg) >= sizeof(servers)) {
+          fprintf(stderr, "servers path too long\n");
+          return 1;
+        }
+
+        memcpy(servers, optarg, strlen(optarg)+1);
         break;
       default:
         printf("Index %d is out of options\n", option_index);
@@ -99,13 +115,81 @@ int main(int argc, char **argv) {
   }
 
   // TODO: for one server here, rewrite with servers from file
-  unsigned int servers_num = 1;
-  struct Server *to = malloc(sizeof(struct Server) * servers_num);
+
+  if (mod == 0) {
+    fprintf(stderr, "mod must be > 0\n");
+    return 1;
+  }
+  //Чтение серверов из файла
+  FILE *f = fopen(servers, "r");
+  if (!f) {
+    fprintf(stderr, "Cannot open servers file: %s\n", servers);
+    return 1;
+  }
+  unsigned int servers_num = 0;
+  unsigned int capacity = 4;
+  struct Server *to = malloc(sizeof(struct Server) * capacity);
+  if (!to) {
+    fprintf(stderr, "malloc failed\n");
+    return 1;
+  }
+
+  char line[512];
+  while (fgets(line, sizeof(line), f)) {
+    line[strcspn(line, "\r\n")] = '\0';
+    if (line[0] == '\0' || line[0] == '#')
+      continue;
+
+    char *colon = strrchr(line, ':');
+    if (!colon) {
+      fprintf(stderr, "Bad server line: %s\n", line);
+      continue;
+    }
+    *colon = '\0';
+    const char *ip = line;
+    int port = atoi(colon + 1);
+
+    if (port <= 0 || port > 65535) {
+      fprintf(stderr, "Bad port in line: %s:%s\n", ip, colon + 1);
+      continue;
+    }
+    if (strlen(ip) >= sizeof(to[servers_num].ip)) {
+      fprintf(stderr, "IP too long: %s\n", ip);
+      continue;
+    if (servers_num == capacity) {
+      capacity *= 2;
+      struct Server *tmp = realloc(to, sizeof(struct Server) * capacity);
+      if (!tmp) {
+        fprintf(stderr, "realloc failed\n");
+        free(to);
+        fclose(f);
+        return 1;
+      }
+      to = tmp;
+    }
+    memcpy(to[servers_num].ip, ip, strlen(ip) + 1);
+    to[servers_num].port = port;
+    servers_num++;
+  }
+}
+  fclose(f);
+  if (servers_num == 0) {
+    fprintf(stderr, "No servers in file\n");
+    free(to);
+    return 1;
+  }
+
   // TODO: delete this and parallel work between servers
-  to[0].port = 20001;
-  memcpy(to[0].ip, "127.0.0.1", sizeof("127.0.0.1"));
+
+  uint64_t total_count = k;
+  uint64_t chunk = total_count / servers_num;
+  uint64_t remainder = total_count % servers_num;
+  uint64_t current = 1;
+
+  uint64_t total = 1;
 
   // TODO: work continiously, rewrite to make parallel
+
   for (int i = 0; i < servers_num; i++) {
     struct hostent *hostname = gethostbyname(to[i].ip);
     if (hostname == NULL) {
@@ -131,8 +215,6 @@ int main(int argc, char **argv) {
 
     // TODO: for one server
     // parallel between servers
-    uint64_t begin = 1;
-    uint64_t end = k;
 
     char task[sizeof(uint64_t) * 3];
     memcpy(task, &begin, sizeof(uint64_t));
@@ -145,19 +227,33 @@ int main(int argc, char **argv) {
     }
 
     char response[sizeof(uint64_t)];
-    if (recv(sck, response, sizeof(response), 0) < 0) {
-      fprintf(stderr, "Recieve failed\n");
-      exit(1);
+    ssize_t got = 0;
+    while (got < (ssize_t)sizeof(response)) {
+      ssize_t n = recv(sck, response + got, sizeof(response) - got, 0);
+      if (n <= 0) {
+        fprintf(stderr, "Recieve failed\n");
+        close(sck);
+        free(to);
+        exit(1);
+      }
+      got += n;
     }
 
     // TODO: from one server
     // unite results
     uint64_t answer = 0;
     memcpy(&answer, response, sizeof(uint64_t));
-    printf("answer: %llu\n", answer);
+    fprintf(stderr, "Server %s:%d -> [%llu..%llu] = %llu\n",
+            to[i].ip, to[i].port,
+            (unsigned long long)begin, (unsigned long long)end,
+            (unsigned long long)answer);
+
+    total = MultModulo(total, answer, mod);
 
     close(sck);
   }
+
+  printf("answer: %llu\n", (unsigned long long)total);
   free(to);
 
   return 0;
